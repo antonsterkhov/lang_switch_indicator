@@ -33,7 +33,7 @@
 ## Что использует проект
 
 - Язык: Rust (`edition = 2024`)
-- Crate: `windows = 0.58`
+- Crate: `windows = 0.62.2`
 - WinAPI (через `windows` crate):
   - окно/сообщения: `Win32_UI_WindowsAndMessaging`
   - трей: `Win32_UI_Shell`

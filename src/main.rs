@@ -5,7 +5,7 @@ use std::mem::size_of;
 use std::os::windows::ffi::OsStrExt;
 use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{
-    BOOL, COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
+    COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, CreateFontW, CreateSolidBrush,
@@ -159,10 +159,10 @@ fn create_indicator_font(size: IndicatorSize) -> HFONT {
             0,
             0,
             0,
-            DEFAULT_CHARSET.0 as u32,
-            OUT_OUTLINE_PRECIS.0 as u32,
-            CLIP_DEFAULT_PRECIS.0 as u32,
-            CLEARTYPE_QUALITY.0 as u32,
+            DEFAULT_CHARSET,
+            OUT_OUTLINE_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY,
             FF_DONTCARE.0 as u32,
             w!("Segoe UI"),
         )
@@ -172,7 +172,7 @@ fn create_indicator_font(size: IndicatorSize) -> HFONT {
 fn rebuild_font(state: &mut AppState) {
     unsafe {
         if !state.font.0.is_null() {
-            let _ = DeleteObject(state.font);
+            let _ = DeleteObject(state.font.into());
         }
         state.font = create_indicator_font(state.size);
     }
@@ -186,17 +186,17 @@ fn show_indicator(hwnd: HWND, state: &mut AppState, hkl: isize) {
     unsafe {
         let _ = SetWindowPos(
             hwnd,
-            HWND::default(),
+            Some(HWND::default()),
             x,
             y,
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
             SWP_NOACTIVATE | SWP_NOZORDER,
         );
-        let _ = InvalidateRect(hwnd, None, BOOL(1));
+        let _ = InvalidateRect(Some(hwnd), None, true);
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        let _ = KillTimer(hwnd, HIDE_TIMER_ID);
-        SetTimer(hwnd, HIDE_TIMER_ID, state.display_ms, None);
+        let _ = KillTimer(Some(hwnd), HIDE_TIMER_ID);
+        SetTimer(Some(hwnd), HIDE_TIMER_ID, state.display_ms, None);
     }
 }
 
@@ -434,11 +434,11 @@ fn show_tray_menu(hwnd: HWND, state: &AppState) {
             TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON,
             cursor.x,
             cursor.y,
-            0,
+            Some(0),
             hwnd,
             None,
         );
-        let _ = PostMessageW(hwnd, WM_NULL, WPARAM(0), LPARAM(0));
+        let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
         let _ = DestroyMenu(menu);
     }
 }
@@ -458,9 +458,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     let state = &mut *state_ptr;
                     rebuild_font(state);
                     add_tray_icon(hwnd, state);
-                    SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                    SetTimer(Some(hwnd), POLL_TIMER_ID, state.poll_interval_ms, None);
                 } else {
-                    SetTimer(hwnd, POLL_TIMER_ID, DEFAULT_POLL_INTERVAL_MS, None);
+                    SetTimer(Some(hwnd), POLL_TIMER_ID, DEFAULT_POLL_INTERVAL_MS, None);
                 }
                 let _ = ShowWindow(hwnd, SW_HIDE);
                 LRESULT(0)
@@ -478,7 +478,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         state.paused = !state.paused;
                         state.last_typing_press = None;
                         if state.paused {
-                            let _ = KillTimer(hwnd, HIDE_TIMER_ID);
+                            let _ = KillTimer(Some(hwnd), HIDE_TIMER_ID);
                             let _ = ShowWindow(hwnd, SW_HIDE);
                         } else {
                             let hkl = current_hkl();
@@ -490,32 +490,32 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     MENU_SIZE_SMALL => {
                         state.size = IndicatorSize::Small;
                         rebuild_font(state);
-                        let _ = InvalidateRect(hwnd, None, BOOL(1));
+                        let _ = InvalidateRect(Some(hwnd), None, true);
                     }
                     MENU_SIZE_MEDIUM => {
                         state.size = IndicatorSize::Medium;
                         rebuild_font(state);
-                        let _ = InvalidateRect(hwnd, None, BOOL(1));
+                        let _ = InvalidateRect(Some(hwnd), None, true);
                     }
                     MENU_SIZE_LARGE => {
                         state.size = IndicatorSize::Large;
                         rebuild_font(state);
-                        let _ = InvalidateRect(hwnd, None, BOOL(1));
+                        let _ = InvalidateRect(Some(hwnd), None, true);
                     }
                     MENU_POLL_80 => {
                         state.poll_interval_ms = 80;
-                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
-                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                        let _ = KillTimer(Some(hwnd), POLL_TIMER_ID);
+                        SetTimer(Some(hwnd), POLL_TIMER_ID, state.poll_interval_ms, None);
                     }
                     MENU_POLL_120 => {
                         state.poll_interval_ms = 120;
-                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
-                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                        let _ = KillTimer(Some(hwnd), POLL_TIMER_ID);
+                        SetTimer(Some(hwnd), POLL_TIMER_ID, state.poll_interval_ms, None);
                     }
                     MENU_POLL_200 => {
                         state.poll_interval_ms = 200;
-                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
-                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                        let _ = KillTimer(Some(hwnd), POLL_TIMER_ID);
+                        SetTimer(Some(hwnd), POLL_TIMER_ID, state.poll_interval_ms, None);
                     }
                     MENU_DISPLAY_600 => {
                         state.display_ms = 600;
@@ -594,7 +594,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         state.last_typing_press = Some(now);
                     }
                 } else if wparam.0 == HIDE_TIMER_ID {
-                    let _ = KillTimer(hwnd, HIDE_TIMER_ID);
+                    let _ = KillTimer(Some(hwnd), HIDE_TIMER_ID);
                     let _ = ShowWindow(hwnd, SW_HIDE);
                 }
 
@@ -614,9 +614,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
                 let bg = CreateSolidBrush(COLORREF(0x00303030));
                 FillRect(hdc, &rect, bg);
-                let _ = DeleteObject(bg);
+                let _ = DeleteObject(bg.into());
 
-                let old = SelectObject(hdc, state.font);
+                let old = SelectObject(hdc, state.font.into());
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, COLORREF(0x00F0F0F0));
                 let mut text_size = SIZE::default();
@@ -634,8 +634,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 if !state_ptr.is_null() {
                     remove_tray_icon(hwnd, &mut *state_ptr);
                 }
-                let _ = KillTimer(hwnd, POLL_TIMER_ID);
-                let _ = KillTimer(hwnd, HIDE_TIMER_ID);
+                let _ = KillTimer(Some(hwnd), POLL_TIMER_ID);
+                let _ = KillTimer(Some(hwnd), HIDE_TIMER_ID);
                 PostQuitMessage(0);
                 LRESULT(0)
             }
@@ -644,7 +644,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 if !state_ptr.is_null() {
                     let state = Box::from_raw(state_ptr);
                     if !state.font.0.is_null() {
-                        let _ = DeleteObject(state.font);
+                        let _ = DeleteObject(state.font.into());
                     }
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 }
@@ -672,7 +672,7 @@ fn main() -> windows::core::Result<()> {
         };
 
         if RegisterClassW(&wc) == 0 {
-            return Err(windows::core::Error::from_win32());
+            return Err(windows::core::Error::from_thread());
         }
 
         let state_ptr = Box::into_raw(Box::new(AppState::new())) as *const c_void;
@@ -691,7 +691,7 @@ fn main() -> windows::core::Result<()> {
             WINDOW_HEIGHT,
             None,
             None,
-            instance,
+            Some(instance.into()),
             Some(state_ptr),
         ) {
             Ok(hwnd) => hwnd,
@@ -704,7 +704,7 @@ fn main() -> windows::core::Result<()> {
         SetLayeredWindowAttributes(hwnd, COLORREF(0), 235, LWA_ALPHA)?;
 
         let mut msg = MSG::default();
-        while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
+        while GetMessageW(&mut msg, Some(HWND::default()), 0, 0).as_bool() {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
