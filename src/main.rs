@@ -38,9 +38,9 @@ const WINDOW_WIDTH: i32 = 460;
 const WINDOW_HEIGHT: i32 = 240;
 const POLL_TIMER_ID: usize = 1;
 const HIDE_TIMER_ID: usize = 2;
-const POLL_INTERVAL_MS: u32 = 120;
-const DISPLAY_MS: u32 = 1200;
-const TYPING_SESSION_GAP: Duration = Duration::from_millis(5000);
+const DEFAULT_POLL_INTERVAL_MS: u32 = 120;
+const DEFAULT_DISPLAY_MS: u32 = 1200;
+const DEFAULT_TYPING_SESSION_GAP: Duration = Duration::from_millis(5000);
 
 const TRAY_ICON_ID: u32 = 1;
 const TRAY_CALLBACK_MSG: u32 = WM_APP + 1;
@@ -49,6 +49,19 @@ const MENU_TOGGLE_PAUSE: usize = 1001;
 const MENU_SIZE_SMALL: usize = 1002;
 const MENU_SIZE_MEDIUM: usize = 1003;
 const MENU_SIZE_LARGE: usize = 1004;
+
+const MENU_POLL_80: usize = 1101;
+const MENU_POLL_120: usize = 1102;
+const MENU_POLL_200: usize = 1103;
+
+const MENU_DISPLAY_600: usize = 1201;
+const MENU_DISPLAY_1200: usize = 1202;
+const MENU_DISPLAY_2000: usize = 1203;
+
+const MENU_TYPING_GAP_2S: usize = 1301;
+const MENU_TYPING_GAP_5S: usize = 1302;
+const MENU_TYPING_GAP_8S: usize = 1303;
+
 const MENU_EXIT: usize = 1099;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -73,6 +86,9 @@ struct AppState {
     initialized: bool,
     paused: bool,
     last_typing_press: Option<Instant>,
+    poll_interval_ms: u32,
+    display_ms: u32,
+    typing_session_gap: Duration,
     size: IndicatorSize,
     text_utf16: Vec<u16>,
     font: HFONT,
@@ -87,6 +103,9 @@ impl AppState {
             initialized: false,
             paused: false,
             last_typing_press: None,
+            poll_interval_ms: DEFAULT_POLL_INTERVAL_MS,
+            display_ms: DEFAULT_DISPLAY_MS,
+            typing_session_gap: DEFAULT_TYPING_SESSION_GAP,
             size: IndicatorSize::Medium,
             text_utf16: to_utf16("EN"),
             font: HFONT::default(),
@@ -177,7 +196,7 @@ fn show_indicator(hwnd: HWND, state: &mut AppState, hkl: isize) {
         let _ = InvalidateRect(hwnd, None, BOOL(1));
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         let _ = KillTimer(hwnd, HIDE_TIMER_ID);
-        SetTimer(hwnd, HIDE_TIMER_ID, DISPLAY_MS, None);
+        SetTimer(hwnd, HIDE_TIMER_ID, state.display_ms, None);
     }
 }
 
@@ -264,7 +283,7 @@ fn add_tray_icon(hwnd: HWND, state: &mut AppState) {
         nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
         nid.uCallbackMessage = TRAY_CALLBACK_MSG;
         nid.hIcon = state.tray_icon;
-        copy_utf16_z(&mut nid.szTip, "Lang switch indicator");
+        copy_utf16_z(&mut nid.szTip, "Индикатор раскладки");
         let _ = Shell_NotifyIconW(NIM_ADD, &nid);
     }
 }
@@ -293,6 +312,28 @@ fn menu_flags_for_size(current: IndicatorSize, candidate: IndicatorSize) -> wind
     }
 }
 
+fn menu_flags_for_u32(
+    current: u32,
+    candidate: u32,
+) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
+    if current == candidate {
+        MF_STRING | MF_CHECKED
+    } else {
+        MF_STRING | MF_UNCHECKED
+    }
+}
+
+fn menu_flags_for_duration(
+    current: Duration,
+    candidate: Duration,
+) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
+    if current == candidate {
+        MF_STRING | MF_CHECKED
+    } else {
+        MF_STRING | MF_UNCHECKED
+    }
+}
+
 fn show_tray_menu(hwnd: HWND, state: &AppState) {
     unsafe {
         let menu = match CreatePopupMenu() {
@@ -301,9 +342,9 @@ fn show_tray_menu(hwnd: HWND, state: &AppState) {
         };
 
         let pause_text = if state.paused {
-            w!("Resume")
+            w!("Продолжить")
         } else {
-            w!("Pause")
+            w!("Пауза")
         };
         let _ = AppendMenuW(menu, MF_STRING, MENU_TOGGLE_PAUSE, pause_text);
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
@@ -311,22 +352,79 @@ fn show_tray_menu(hwnd: HWND, state: &AppState) {
             menu,
             menu_flags_for_size(state.size, IndicatorSize::Small),
             MENU_SIZE_SMALL,
-            w!("Size: Small"),
+            w!("Размер: маленький"),
         );
         let _ = AppendMenuW(
             menu,
             menu_flags_for_size(state.size, IndicatorSize::Medium),
             MENU_SIZE_MEDIUM,
-            w!("Size: Medium"),
+            w!("Размер: средний"),
         );
         let _ = AppendMenuW(
             menu,
             menu_flags_for_size(state.size, IndicatorSize::Large),
             MENU_SIZE_LARGE,
-            w!("Size: Large"),
+            w!("Размер: большой"),
         );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, MF_STRING, MENU_EXIT, w!("Exit"));
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.poll_interval_ms, 80),
+            MENU_POLL_80,
+            w!("Интервал опроса: 80 мс"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.poll_interval_ms, 120),
+            MENU_POLL_120,
+            w!("Интервал опроса: 120 мс"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.poll_interval_ms, 200),
+            MENU_POLL_200,
+            w!("Интервал опроса: 200 мс"),
+        );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.display_ms, 600),
+            MENU_DISPLAY_600,
+            w!("Время показа: 600 мс"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.display_ms, 1200),
+            MENU_DISPLAY_1200,
+            w!("Время показа: 1200 мс"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_u32(state.display_ms, 2000),
+            MENU_DISPLAY_2000,
+            w!("Время показа: 2000 мс"),
+        );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_duration(state.typing_session_gap, Duration::from_secs(2)),
+            MENU_TYPING_GAP_2S,
+            w!("Пауза печати: 2 с"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_duration(state.typing_session_gap, Duration::from_secs(5)),
+            MENU_TYPING_GAP_5S,
+            w!("Пауза печати: 5 с"),
+        );
+        let _ = AppendMenuW(
+            menu,
+            menu_flags_for_duration(state.typing_session_gap, Duration::from_secs(8)),
+            MENU_TYPING_GAP_8S,
+            w!("Пауза печати: 8 с"),
+        );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(menu, MF_STRING, MENU_EXIT, w!("Выход"));
 
         let mut cursor = POINT::default();
         let _ = GetCursorPos(&mut cursor);
@@ -360,8 +458,10 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     let state = &mut *state_ptr;
                     rebuild_font(state);
                     add_tray_icon(hwnd, state);
+                    SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                } else {
+                    SetTimer(hwnd, POLL_TIMER_ID, DEFAULT_POLL_INTERVAL_MS, None);
                 }
-                SetTimer(hwnd, POLL_TIMER_ID, POLL_INTERVAL_MS, None);
                 let _ = ShowWindow(hwnd, SW_HIDE);
                 LRESULT(0)
             }
@@ -401,6 +501,42 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         state.size = IndicatorSize::Large;
                         rebuild_font(state);
                         let _ = InvalidateRect(hwnd, None, BOOL(1));
+                    }
+                    MENU_POLL_80 => {
+                        state.poll_interval_ms = 80;
+                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
+                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                    }
+                    MENU_POLL_120 => {
+                        state.poll_interval_ms = 120;
+                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
+                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                    }
+                    MENU_POLL_200 => {
+                        state.poll_interval_ms = 200;
+                        let _ = KillTimer(hwnd, POLL_TIMER_ID);
+                        SetTimer(hwnd, POLL_TIMER_ID, state.poll_interval_ms, None);
+                    }
+                    MENU_DISPLAY_600 => {
+                        state.display_ms = 600;
+                    }
+                    MENU_DISPLAY_1200 => {
+                        state.display_ms = 1200;
+                    }
+                    MENU_DISPLAY_2000 => {
+                        state.display_ms = 2000;
+                    }
+                    MENU_TYPING_GAP_2S => {
+                        state.typing_session_gap = Duration::from_secs(2);
+                        state.last_typing_press = None;
+                    }
+                    MENU_TYPING_GAP_5S => {
+                        state.typing_session_gap = Duration::from_secs(5);
+                        state.last_typing_press = None;
+                    }
+                    MENU_TYPING_GAP_8S => {
+                        state.typing_session_gap = Duration::from_secs(8);
+                        state.last_typing_press = None;
                     }
                     MENU_EXIT => {
                         let _ = DestroyWindow(hwnd);
@@ -446,7 +582,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         let now = Instant::now();
                         let should_show = state
                             .last_typing_press
-                            .map(|last| now.duration_since(last) >= TYPING_SESSION_GAP)
+                            .map(|last| now.duration_since(last) >= state.typing_session_gap)
                             .unwrap_or(true);
 
                         if should_show {
