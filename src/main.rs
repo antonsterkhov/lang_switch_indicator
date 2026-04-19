@@ -26,11 +26,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     KillTimer, LR_DEFAULTSIZE, LR_LOADFROMFILE, LWA_ALPHA, LoadCursorW, LoadIconW, LoadImageW,
     MF_CHECKED, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, MSG, PostMessageW, PostQuitMessage,
     RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE,
-    SWP_NOZORDER, SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW,
-    SetWindowPos, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu,
-    TranslateMessage, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND, WM_CONTEXTMENU,
-    WM_CREATE, WM_DESTROY, WM_NCCREATE, WM_NCDESTROY, WM_NULL, WM_PAINT, WM_RBUTTONUP, WM_TIMER,
-    WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos,
+    ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND, WM_CONTEXTMENU, WM_CREATE, WM_DESTROY,
+    WM_NCCREATE, WM_NCDESTROY, WM_NULL, WM_PAINT, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, HWND_TOPMOST,
 };
 use windows::core::{PCWSTR, w};
 
@@ -186,12 +186,12 @@ fn show_indicator(hwnd: HWND, state: &mut AppState, hkl: isize) {
     unsafe {
         let _ = SetWindowPos(
             hwnd,
-            Some(HWND::default()),
+            Some(HWND_TOPMOST),
             x,
             y,
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
-            SWP_NOACTIVATE | SWP_NOZORDER,
+            SWP_NOACTIVATE,
         );
         let _ = InvalidateRect(Some(hwnd), None, true);
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
