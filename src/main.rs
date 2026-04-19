@@ -612,7 +612,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let mut rect = RECT::default();
                 let _ = GetClientRect(hwnd, &mut rect);
 
-                let bg = CreateSolidBrush(COLORREF(0x00303030));
+                let bg = CreateSolidBrush(COLORREF(0x00FF7800));
                 FillRect(hdc, &rect, bg);
                 let _ = DeleteObject(bg.into());
 
